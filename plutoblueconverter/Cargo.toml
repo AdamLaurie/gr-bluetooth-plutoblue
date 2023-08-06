@@ -1,0 +1,10 @@
+[package]
+name = "plutoblueconverter"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+num-complex = "0.4.3"
+arrayfire = {revision="bd3be3ed48887f8d5a86fbcd59fe5ac2edbeef58", git="https://github.com/arrayfire/arrayfire-rust.git"}
