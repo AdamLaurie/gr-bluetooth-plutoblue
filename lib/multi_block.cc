@@ -27,6 +27,7 @@
 #include "config.h"
 #endif
 
+#include <arrayfire.h>
 #include <gnuradio/io_signature.h>
 #include "bluetooth/multi_block.h"
 #include "bluetooth/packet.h"
@@ -35,6 +36,7 @@
 #include <stdio.h>
 #include <gnuradio/blocks/complex_to_mag_squared.h>
 
+ 
 namespace gr {
   namespace bluetooth {
     multi_block::multi_block(double sample_rate, double center_freq, double squelch_threshold)
@@ -67,6 +69,7 @@ namespace gr {
                                               d_channel_filter_width,
                                               transition_width,
                                               gr::fft::window::WIN_HANN);
+      channel_filter_td=af::array(d_channel_filter.size(),d_channel_filter.data());
 
       /* noise filter coefficients */
       double n_gain = 1;
@@ -77,6 +80,7 @@ namespace gr {
                                             d_noise_filter_width,
                                             n_trans_width,
                                             gr::fft::window::WIN_HANN );
+      noise_filter_td=af::array(d_noise_filter.size(),d_noise_filter.data());
 
       /* we will decimate by the largest integer that results in enough samples per symbol */
       d_ddc_decimation_rate = (int) d_samples_per_symbol / 2;
@@ -96,7 +100,10 @@ namespace gr {
       d_omega_mid = d_omega;
       d_interp = new gr::filter::mmse_fir_interpolator_ff();
       d_last_sample = 0;
-
+      for (int i=0; i<256; i++) {
+	      noise_filtered_samples[i]=0.0;
+	      filtered_samples[i]=0.0;
+      }
       /* the required history is the slot data + the max of either
          channed DDC + demod, or noise DDC */
       int channel_history = (int) (d_channel_filter.size( ) +
@@ -184,45 +191,56 @@ namespace gr {
                                   double&                    energy,
                                   int                        ninput_items )
     {
-      int ddc_noutput_items       = 0;
+      if (ninput_items<=d_ddc_decimation_rate) {
+	      return 0;
+      }
+      int ddc_samples = ninput_items - (channel_filter_td.dims(0) - 1) - d_first_channel_sample;
+      int ddc_noutput_items=0;
       int classic_chan = abs_freq_channel( freq );
-      std::map<int, gr::filter::freq_xlating_fir_filter_ccf::sptr>::const_iterator ddci =
-        d_channel_ddcs.find( classic_chan );
+      auto channel_phases=af::constant<float>(0.0f,ddc_samples);
+      if (fabs((freq-(d_center_freq))) > 0.00001) {
 
-      if (ddci != d_channel_ddcs.end( )) {
-        gr::filter::freq_xlating_fir_filter_ccf::sptr ddc = ddci->second;
-        int ddc_samples = ninput_items - (ddc->history( ) - 1) - d_first_channel_sample;
+
+      	channel_phases=af::array(af::seq((filtered_samples[classic_chan])*((freq)-d_center_freq)*M_PI/(d_sample_rate/2.0),(freq-d_center_freq)*M_PI/(d_sample_rate/2.0)*((ddc_samples+filtered_samples[classic_chan])*2.0),((freq)-d_center_freq)*M_PI/(d_sample_rate/2.0)));
+
+      } 
+
+
+
+      channel_phases=channel_phases(af::seq(0.0,ddc_samples-1,1.0));
+      auto input_samples_af=af::array(ddc_samples,(af::af_cfloat *)&(((gr_complex*)in[0])[d_first_channel_sample]));
+      auto shifted_samples=af::complex(af::cos(channel_phases),af::sin(channel_phases))*input_samples_af;
+      auto filtered_samples_real_af=af::fir(channel_filter_td,af::real(shifted_samples));
+      auto filtered_samples_imag_af=af::fir(channel_filter_td,af::imag(shifted_samples));
+      auto filtered_samples_af=af::complex(filtered_samples_real_af,filtered_samples_imag_af);
+
+      auto decim_mag=af::abs(filtered_samples_af(af::seq(0.0,ddc_samples-1,d_ddc_decimation_rate)));
+      auto decim_samples=filtered_samples_af(af::seq(0.0,ddc_samples-1,d_ddc_decimation_rate));
+      filtered_samples[classic_chan] += ddc_samples;
+      
 		// This changes how many iterations it takes to crash... Definitely on to something.
 		//printf("ddc_samples: %i\n", ddc_samples);
 		//printf("fcs: %i\n", d_first_channel_sample);
-        gr_vector_const_void_star ddc_in( 1 );
-        ddc_in[0] = &(((gr_complex *) in[0])[d_first_channel_sample]);
-        ddc_noutput_items = ddc->fixed_rate_ninput_to_noutput( ddc_samples ); // ddc_samples
 		//printf("ddc_noutput_items: %i\n", ddc_noutput_items);
 		//gr_vector_void_star ddc_out( 1 );
 		//ddc_out[0] = out[0];//malloc(100000);
-        ddc_noutput_items = ddc->work( ddc_noutput_items, ddc_in, out );
 		//printf("after work %i\n", ddc_noutput_items);
-        gr::blocks::complex_to_mag_squared::sptr mag2 = gr::blocks::complex_to_mag_squared::make( 1 );
 		//printf("past\n");
-        float *mag2_out = new float[ddc_noutput_items];
-        gr_vector_void_star mag2_out_vector( 1 );
-        mag2_out_vector[0] = &mag2_out[0];
-        gr_vector_const_void_star ddc_out_const( 1 );
-        ddc_out_const[0] = out[0];
-        (void) mag2->work( ddc_noutput_items, ddc_out_const, mag2_out_vector );
-        energy = 0.0;
-        for( signed i=0; i<ddc_noutput_items; i++ ) {
-          energy += mag2_out[i];
-        }
-        energy /= ddc_noutput_items;
-		delete [] mag2_out;
+		//
+	ddc_noutput_items=decim_samples.dims(0);
+//	printf("noutput_items: %d\n",ddc_noutput_items);
+        gr_complex * decim_samples_host=(gr_complex*)decim_samples.host<af::af_cfloat>();
+	af::sync();
+
+	float tmpenergy=af::sum<float>(decim_mag);
+	tmpenergy=tmpenergy*tmpenergy;
+        tmpenergy /= ddc_noutput_items;
+	memcpy(out[0],decim_samples_host,ddc_noutput_items*8.0);
+	af::freeHost(decim_samples_host);
+	energy=(double)(tmpenergy);
+
 		//free(ddc_out[0]);
         //energy /= d_channel_filter_width;
-      }
-      else {
-        energy = 1.0;
-      }
 
       return ddc_noutput_items;
     }
@@ -259,39 +277,32 @@ namespace gr {
       double off_channel_energy = 0.0;
 
       int classic_chan = abs_freq_channel( freq );
-      std::map<int, gr::filter::freq_xlating_fir_filter_ccf::sptr>::const_iterator nddci =
-        d_noise_ddcs.find( classic_chan );
+      auto noise_phases=af::array(af::seq(noise_filtered_samples[classic_chan]*((freq+790000)-d_center_freq)*M_PI/(d_sample_rate/2.0),((freq+790000)-d_center_freq)*M_PI/(d_sample_rate/2.0)*((d_samples_per_slot+noise_filtered_samples[classic_chan])),((freq+790000)-d_center_freq)*M_PI/(d_sample_rate/2.0)));
 
-      if (nddci != d_noise_ddcs.end( )) {
-        gr::filter::freq_xlating_fir_filter_ccf::sptr nddc = nddci->second;
-        gr_vector_const_void_star ddc_in( 1 );
-        ddc_in[0] = &(((gr_complex *) in[0])[d_first_noise_sample]);
-        int ddc_noutput_items = nddc->fixed_rate_ninput_to_noutput( (int) d_samples_per_slot );
-        gr_complex ddc_out[ddc_noutput_items];
-        gr_vector_void_star ddc_out_vector( 1 );
-        gr_vector_const_void_star ddc_out_const( 1 );
-        ddc_out_vector[0] = &ddc_out[0];
-        ddc_out_const[0]  = &ddc_out[0];
-        ddc_noutput_items = nddc->work( ddc_noutput_items, ddc_in, ddc_out_vector );
+
+      int ddc_noutput_items = (int) d_samples_per_slot/d_ddc_decimation_rate;
+
+      noise_phases=noise_phases(af::seq(0.0,d_samples_per_slot-1,1.0));
+//      printf("noise_phases: %d\n",noise_phases.dims(0));
+      auto input_samples_af=af::array(d_samples_per_slot,(af::af_cfloat *)&(((gr_complex*)in[0])[d_first_noise_sample]));
+      auto shifted_samples=af::complex(af::cos(noise_phases),af::sin(noise_phases))*input_samples_af;
+
+      auto filtered_samples_real_af=af::fir(noise_filter_td,af::real(shifted_samples));
+      auto filtered_samples_imag_af=af::fir(noise_filter_td,af::imag(shifted_samples));
+      auto filtered_samples_af=af::complex(filtered_samples_real_af,filtered_samples_imag_af);
+      auto decim_mag=af::abs(filtered_samples_af(af::seq(0.0,d_samples_per_slot-1,d_ddc_decimation_rate)));
+	af::sync();
+	off_channel_energy=af::sum<float>(decim_mag);
+	off_channel_energy=off_channel_energy*off_channel_energy;
+        off_channel_energy /= ddc_noutput_items;
+
 
         // average mag2 for valley
-        gr::blocks::complex_to_mag_squared::sptr mag2 = gr::blocks::complex_to_mag_squared::make( 1 );
-        float mag2_out[ddc_noutput_items];
-        gr_vector_void_star mag2_out_vector( 1 );
-        mag2_out_vector[0] = &mag2_out[0];
-        (void) mag2->work( ddc_noutput_items, ddc_out_const, mag2_out_vector );
-        for( signed i=0; i<ddc_noutput_items; i++ ) {
-          off_channel_energy += mag2_out[i];
-        }
-        off_channel_energy /= ddc_noutput_items;
-        //off_channel_energy /= d_noise_filter_width;
-      }
-      else {
-        off_channel_energy = 1.0;
-      }
 
       snr = 10.0 * log10( on_channel_energy / off_channel_energy );
-
+      if (getenv("SHOW_SNR") && snr >= d_target_snr) {
+	printf("%f\n",snr);
+      }
       return (snr >= d_target_snr);
     }
 
@@ -328,7 +339,8 @@ namespace gr {
 
       for( int ch=low_classic_channel; ch<=high_classic_channel; ch++ ) {
         double freq = channel_abs_freq( ch );
-        d_channel_ddcs[ch] =
+
+       /* d_channel_ddcs[ch] =
           gr::filter::freq_xlating_fir_filter_ccf::make( d_ddc_decimation_rate,
                                                d_channel_filter,
                                                freq-d_center_freq,
@@ -337,7 +349,7 @@ namespace gr {
           gr::filter::freq_xlating_fir_filter_ccf::make( d_ddc_decimation_rate,
                                                d_noise_filter,
                                                freq+790000.0-d_center_freq,
-                                               d_sample_rate );
+                                               d_sample_rate );*/
       }
     }
 

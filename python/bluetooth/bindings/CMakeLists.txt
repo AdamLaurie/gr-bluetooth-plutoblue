@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-
+find_package(ArrayFire)
 ########################################################################
 # Check if there is C++ code at all
 ########################################################################
@@ -42,7 +42,9 @@ GR_PYBIND_MAKE_OOT(bluetooth
    ../../..
    gr::bluetooth
    "${bluetooth_python_files}")
-
+FIND_PACKAGE(ArrayFire REQUIRED)
+INCLUDE_DIRECTORIES(${ArrayFire_INCLUDE_DIRS})
+TARGET_LINK_LIBRARIES(bluetooth_python ${ArrayFire_LIBRARIES} )
 # copy in bindings .so file for use in QA test module
 add_custom_target(
   copy_bindings_for_tests ALL
@@ -50,5 +52,4 @@ add_custom_target(
     ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_BINARY_DIR}/*.so"
     ${CMAKE_BINARY_DIR}/test_modules/gnuradio/bluetooth/
   DEPENDS bluetooth_python)
-
 install(TARGETS bluetooth_python DESTINATION ${GR_PYTHON_DIR}/gnuradio/bluetooth COMPONENT pythonapi)

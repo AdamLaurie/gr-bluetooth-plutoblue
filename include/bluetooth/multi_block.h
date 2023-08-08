@@ -29,7 +29,7 @@
 #include <gnuradio/sync_block.h>
 #include <gnuradio/filter/mmse_fir_interpolator_ff.h>
 #include <gnuradio/filter/freq_xlating_fir_filter.h>
-
+#include <arrayfire.h>
 namespace gr {
   namespace bluetooth {
 
@@ -48,7 +48,7 @@ namespace gr {
 
       static const int SYMBOLS_PER_BASIC_RATE_SHORTENED_ACCESS_CODE = 68;
       static const int SYMBOLS_PER_LOW_ENERGY_PREAMBLE_AA = 40;
-
+      
       /* length of time slot in symbols */
       static const int SYMBOLS_PER_BASIC_RATE_SLOT    = 625;
       static const int SYMBOLS_FOR_BASIC_RATE_HISTORY = 3125;
@@ -98,13 +98,14 @@ namespace gr {
       /* channel filter coefficients for digital downconverter */
       double d_channel_filter_width;
       std::vector<float> d_channel_filter;
-      std::map<int, gr::filter::freq_xlating_fir_filter_ccf::sptr> d_channel_ddcs;
+      af::array channel_filter_td;
 
       /* noise power filter coefficients */
       double d_noise_filter_width;
       std::vector<float> d_noise_filter;
-      std::map<int, gr::filter::freq_xlating_fir_filter_ccf::sptr> d_noise_ddcs;
-
+      af::array noise_filter_td;
+      double filtered_samples[256];
+      double noise_filtered_samples[256];
       /* input sample offset where channel and noise extraction happens */
       int d_first_channel_sample;
       int d_first_noise_sample;
