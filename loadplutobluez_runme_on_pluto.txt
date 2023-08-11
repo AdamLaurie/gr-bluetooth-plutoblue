@@ -12,19 +12,19 @@ echo 7c400000.dma > /sys/bus/platform/drivers/dma-axi-dmac/bind
 echo 79024000.cf-ad9361-dds-core-lpc > /sys/bus/platform/drivers/cf_axi_dds/bind
 echo 79020000.cf-ad9361-lpc > /sys/bus/platform/drivers/cf_axi_adc/bind
 sleep 3
-echo 2440000000 > /sys/bus/iio/devices/iio\:device1/out_altvoltage0_RX_LO_frequency
-echo 42000000 > /sys/bus/iio/devices/iio\:device1/in_voltage_rf_bandwidth
-echo 42000000 > /sys/bus/iio/devices/iio:device1/in_voltage_sampling_frequency
-echo manual > /sys/bus/iio/devices/iio\:device1/in_voltage0_gain_control_mode
-echo 60 > /sys/bus/iio/devices/iio\:device1/in_voltage0_hardwaregain
-echo 0xA 0x9 > /sys/kernel/debug/iio/iio\:device1/direct_reg_access
-#echo 0x002 0x50 > /sys/kernel/debug/iio/iio\:device1/direct_reg_access
-#echo 0x003 0x58 > /sys/kernel/debug/iio/iio\:device1/direct_reg_access
+echo 2440000000 > /sys/bus/iio/devices/iio\:device0/out_altvoltage0_RX_LO_frequency
+echo 42000000 > /sys/bus/iio/devices/iio\:device0/in_voltage_rf_bandwidth
+echo 42000000 > /sys/bus/iio/devices/iio:device0/in_voltage_sampling_frequency
+echo manual > /sys/bus/iio/devices/iio\:device0/in_voltage0_gain_control_mode
+echo 60 > /sys/bus/iio/devices/iio\:device0/in_voltage0_hardwaregain
+echo 0xA 0x9 > /sys/kernel/debug/iio/iio\:device0/direct_reg_access
+#echo 0x002 0x50 > /sys/kernel/debug/iio/iio\:device0/direct_reg_access
+#echo 0x003 0x58 > /sys/kernel/debug/iio/iio\:device0/direct_reg_access
 
 
-#echo 0x0f6 0x3 > /sys/kernel/debug/iio/iio\:device1/direct_reg_access
-#echo 0x194 0x8 > /sys/kernel/debug/iio/iio\:device1/direct_reg_access
-#echo 0 >  /sys/bus/iio/devices/iio:device1/in_voltage_bb_dc_offset_tracking_en
+#echo 0x0f6 0x3 > /sys/kernel/debug/iio/iio\:device0/direct_reg_access
+#echo 0x194 0x8 > /sys/kernel/debug/iio/iio\:device0/direct_reg_access
+#echo 0 >  /sys/bus/iio/devices/iio:device0/in_voltage_bb_dc_offset_tracking_en
 
 sleep 1
 devmem 0x41200000 w 0x1
