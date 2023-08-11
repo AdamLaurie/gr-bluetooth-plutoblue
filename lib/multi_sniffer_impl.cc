@@ -91,8 +91,7 @@ namespace gr {
         double on_channel_energy, snr;
         int ch_count = channel_samples( freq, input_items, btch, on_channel_energy, history() );
         bool brok; // = check_basic_rate_squelch(input_items);
-        bool leok = !!getenv("DO_LE");
-	brok = check_snr( freq, on_channel_energy, snr, input_items );
+        bool leok = brok = check_snr( freq, on_channel_energy, snr, input_items );
 
         /* number of symbols available */
         if (brok || leok) {
@@ -174,6 +173,7 @@ namespace gr {
       uint32_t clkn = (int) (d_cumulative_count / d_samples_per_slot) & 0x7ffffff;
       classic_packet::sptr pkt = classic_packet::make(symbols, len, clkn, freq);
       uint32_t lap = pkt->get_LAP();
+
       printf("time %6d, snr=%.1f, channel %2d, LAP %06x ", 
              clkn, snr, pkt->get_channel( ), lap);
 
