@@ -506,6 +506,7 @@ namespace gr {
         d_have_UAP = true;
         printf("We have a winner! UAP = 0x%x found after %d total packets.\n",
                d_UAP, d_total_packets_observed);
+	fprintf(stderr,"got legacy bluetooth addr %02X:%02X:%02X:%02X:%02X:%02X\n",0x0,0x0,d_UAP,(d_LAP>>16)&0xFF,(d_LAP>>8)&0xFF,d_LAP&0xFF);
         d_total_packets_observed = 0;
         return true;
       }
