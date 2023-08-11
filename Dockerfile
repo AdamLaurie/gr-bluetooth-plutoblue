@@ -8,8 +8,9 @@ RUN DEBIAN_FRONTEND=noninteractive apt install -y build-essential gnuradio libii
 RUN DEBIAN_FRONTEND=noninteractive apt install -y git
 RUN DEBIAN_FRONTEND=noninteractive apt install -y arrayfire-cpu3-mkl vim
 RUN git clone https://github.com/CellWizard/gr-bluetooth-plutoblue.git gr-bluetooth
-RUN cd gr-bluetooth && git checkout plutoconverter
+RUN cd gr-bluetooth && git checkout plutoconverter && cd ..
 RUN cd gr-bluetooth && cmake . && make install && cd ..
+RUN ldconfig
 ADD apps /apps
 ADD system_top.bit.bin /system_top.bit.bin
 ADD runaddr.sh /runaddr.sh
