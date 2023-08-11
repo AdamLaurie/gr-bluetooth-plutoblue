@@ -6,10 +6,10 @@ RUN echo "deb [arch=amd64] https://repo.arrayfire.com/debian all main" | tee /et
 RUN apt update -y
 RUN DEBIAN_FRONTEND=noninteractive apt install -y build-essential gnuradio libiio* cmake arrayfire-unified3-dev intel-mkl arrayfire-opencl3-dev arrayfire-opencl3-mkl arrayfire-unified3 libbtbb-dev pocl-opencl-icd
 RUN DEBIAN_FRONTEND=noninteractive apt install -y git
-RUN git clone https://github.com/CellWizard/gr-bluetooth-plutoblue.git
-RUN git clone https://github.com/bkerler/gr-bluetooth.git
+RUN DEBIAN_FRONTEND=noninteractive apt install -y arrayfire-cpu3-mkl vim
+RUN git clone https://github.com/CellWizard/gr-bluetooth-plutoblue.git gr-bluetooth
+RUN cd gr-bluetooth && git checkout plutoconverter
 RUN cd gr-bluetooth && cmake . && make install && cd ..
-RUN apt install -y arrayfire-cpu3-mkl vim
 ADD apps /apps
 ADD system_top.bit.bin /system_top.bit.bin
 ADD runaddr.sh /runaddr.sh
