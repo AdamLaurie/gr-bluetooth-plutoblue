@@ -12,7 +12,8 @@ RUN cd gr-bluetooth && cmake . && make install && cd ..
 RUN apt install -y arrayfire-cpu3-mkl vim
 ADD apps /apps
 ADD system_top.bit.bin /system_top.bit.bin
-ADD run.sh /run.sh
+ADD runaddr.sh /runaddr.sh
+ADD runfull.sh /runfull.sh
 add loadplutobluez_runme_on_pluto.txt /loadplutobluez_runme_on_pluto.txt
 ADD plutoblueconverter /plutoblueconverter
 
