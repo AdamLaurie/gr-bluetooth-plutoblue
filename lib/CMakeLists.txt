@@ -33,7 +33,7 @@ if(NOT bluetooth_sources)
 endif(NOT bluetooth_sources)
 
 add_library(gnuradio-bluetooth SHARED ${bluetooth_sources})
-target_link_libraries(gnuradio-bluetooth btbb gnuradio::gnuradio-runtime gnuradio-filter gnuradio-blocks gnuradio-fft)
+target_link_libraries(gnuradio-bluetooth btbb gnuradio::gnuradio-runtime gnuradio-filter gnuradio-blocks gnuradio-fft af)
 target_include_directories(gnuradio-bluetooth
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
     PUBLIC $<INSTALL_INTERFACE:include>

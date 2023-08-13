@@ -29,7 +29,7 @@
 #include <gnuradio/sync_block.h>
 #include <gnuradio/filter/mmse_fir_interpolator_ff.h>
 #include <gnuradio/filter/freq_xlating_fir_filter.h>
-
+#include <arrayfire.h>
 namespace gr {
   namespace bluetooth {
 
@@ -99,11 +99,13 @@ namespace gr {
       double d_channel_filter_width;
       std::vector<float> d_channel_filter;
       std::map<int, gr::filter::freq_xlating_fir_filter_ccf::sptr> d_channel_ddcs;
+      std::map<int, af::array> d_channel_histories;
 
       /* noise power filter coefficients */
       double d_noise_filter_width;
       std::vector<float> d_noise_filter;
       std::map<int, gr::filter::freq_xlating_fir_filter_ccf::sptr> d_noise_ddcs;
+      std::map<int, af::array> d_noise_histories;
 
       /* input sample offset where channel and noise extraction happens */
       int d_first_channel_sample;

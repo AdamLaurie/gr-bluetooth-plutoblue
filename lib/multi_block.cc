@@ -34,7 +34,7 @@
 #include <gnuradio/math.h>
 #include <stdio.h>
 #include <gnuradio/blocks/complex_to_mag_squared.h>
-
+#include <arrayfire.h>
 namespace gr {
   namespace bluetooth {
     multi_block::multi_block(double sample_rate, double center_freq, double squelch_threshold)
@@ -190,33 +190,51 @@ namespace gr {
         d_channel_ddcs.find( classic_chan );
 
       if (ddci != d_channel_ddcs.end( )) {
+
         gr::filter::freq_xlating_fir_filter_ccf::sptr ddc = ddci->second;
         int ddc_samples = ninput_items - (ddc->history( ) - 1) - d_first_channel_sample;
 		// This changes how many iterations it takes to crash... Definitely on to something.
 		//printf("ddc_samples: %i\n", ddc_samples);
 		//printf("fcs: %i\n", d_first_channel_sample);
         gr_vector_const_void_star ddc_in( 1 );
+	auto sample_arr=af::array(ddc_samples,(af::cfloat *)(&(((af::cfloat*)in[0])[d_first_channel_sample])));
         ddc_in[0] = &(((gr_complex *) in[0])[d_first_channel_sample]);
-        ddc_noutput_items = ddc->fixed_rate_ninput_to_noutput( ddc_samples ); // ddc_samples
-		//printf("ddc_noutput_items: %i\n", ddc_noutput_items);
+        ddc_noutput_items = ddc->fixed_rate_ninput_to_noutput( ddc_samples ); // ddc_sample
+									      //
+	auto af_seq=af::array(af::seq((double)ddc_samples));
+	af_seq *= 2.0*M_PI;
+	af_seq *= -(channel_rel_freq(classic_chan)/d_sample_rate);
+	auto freq_shifted_sample_arr=sample_arr*af::complex(af::cos(af_seq),af::sin(af_seq));
+	auto IS=af::real(freq_shifted_sample_arr);
+	auto QS=af::imag(freq_shifted_sample_arr);
+	auto FIS=af::fftConvolve(IS,af::array(d_channel_filter.size(),d_channel_filter.data()));
+	auto FQS=af::fftConvolve(QS,af::array(d_channel_filter.size(),d_channel_filter.data()));
+	auto out_seq=af::array(af::seq((double)ddc_noutput_items));
+	out_seq *= (int)(d_ddc_decimation_rate);
+	auto samples_xlated=af::complex(FIS,FQS);
+	//printf("ddc_noutput_items: %i\n", ddc_noutput_items);
 		//gr_vector_void_star ddc_out( 1 );
 		//ddc_out[0] = out[0];//malloc(100000);
-        ddc_noutput_items = ddc->work( ddc_noutput_items, ddc_in, out );
+        //ddc_noutput_items = ddc->work( ddc_noutput_items, ddc_in, out );
 		//printf("after work %i\n", ddc_noutput_items);
-        gr::blocks::complex_to_mag_squared::sptr mag2 = gr::blocks::complex_to_mag_squared::make( 1 );
+//        gr::blocks::complex_to_mag_squared::sptr mag2 = gr::blocks::complex_to_mag_squared::make( 1 );
 		//printf("past\n");
-        float *mag2_out = new float[ddc_noutput_items];
-        gr_vector_void_star mag2_out_vector( 1 );
-        mag2_out_vector[0] = &mag2_out[0];
+	auto mag=af::abs(samples_xlated).as(f32);
+	
+//        float *mag2_out = new float[ddc_noutput_items];
+//	mag(out_seq).host(mag2_out);
+		
         gr_vector_const_void_star ddc_out_const( 1 );
         ddc_out_const[0] = out[0];
-        (void) mag2->work( ddc_noutput_items, ddc_out_const, mag2_out_vector );
-        energy = 0.0;
-        for( signed i=0; i<ddc_noutput_items; i++ ) {
-          energy += mag2_out[i];
-        }
+	af::array(samples_xlated(out_seq)).as(c32).host(out[0]);
+//        (void) mag2->work( ddc_noutput_items, ddc_out_const, mag2_out_vector );
+	auto abs_mag=af::array(mag(out_seq));
+        auto abs_sum=af::array((af::sum(af::pow(abs_mag,af::constant(2.0,abs_mag.dims(0),f32))).as(f64))(0));
+	abs_sum.host(&energy);	
+
         energy /= ddc_noutput_items;
-		delete [] mag2_out;
+//	printf("once: %lf\n",energy);
+//		delete [] mag2_out;
 		//free(ddc_out[0]);
         //energy /= d_channel_filter_width;
       }
@@ -266,29 +284,41 @@ namespace gr {
         gr::filter::freq_xlating_fir_filter_ccf::sptr nddc = nddci->second;
         gr_vector_const_void_star ddc_in( 1 );
         ddc_in[0] = &(((gr_complex *) in[0])[d_first_noise_sample]);
+	auto sample_arr=af::array(d_samples_per_slot,(af::cfloat*)ddc_in[0]);
         int ddc_noutput_items = nddc->fixed_rate_ninput_to_noutput( (int) d_samples_per_slot );
         gr_complex ddc_out[ddc_noutput_items];
         gr_vector_void_star ddc_out_vector( 1 );
         gr_vector_const_void_star ddc_out_const( 1 );
         ddc_out_vector[0] = &ddc_out[0];
         ddc_out_const[0]  = &ddc_out[0];
-        ddc_noutput_items = nddc->work( ddc_noutput_items, ddc_in, ddc_out_vector );
-
+	auto af_seq=af::array(af::seq((double)d_samples_per_slot));
+	af_seq *= 2.0*M_PI;
+	af_seq *= -((channel_rel_freq(classic_chan)+790000)/d_sample_rate);
+	auto freq_shifted_sample_arr=sample_arr*af::complex(af::cos(af_seq),af::sin(af_seq));
+	auto IS=af::real(freq_shifted_sample_arr);
+	auto QS=af::imag(freq_shifted_sample_arr);
+	auto FIS=af::fftConvolve(IS,af::array(d_noise_filter.size(),d_noise_filter.data()));
+	auto FQS=af::fftConvolve(QS,af::array(d_noise_filter.size(),d_noise_filter.data()));
+	auto out_seq=af::array(af::seq((double)ddc_noutput_items));
+	out_seq *= (int)(d_ddc_decimation_rate);
+	auto samples_xlated=af::complex(FIS,FQS);
+	auto abs_xlated=af::abs(samples_xlated(out_seq)).as(f32);
+        auto abs_sum=af::sum(af::pow(abs_xlated,af::constant(2.0,abs_xlated.dims(0),f32))).as(f64);
+	abs_sum(0).host(&off_channel_energy);
         // average mag2 for valley
         gr::blocks::complex_to_mag_squared::sptr mag2 = gr::blocks::complex_to_mag_squared::make( 1 );
         float mag2_out[ddc_noutput_items];
-        gr_vector_void_star mag2_out_vector( 1 );
-        mag2_out_vector[0] = &mag2_out[0];
-        (void) mag2->work( ddc_noutput_items, ddc_out_const, mag2_out_vector );
-        for( signed i=0; i<ddc_noutput_items; i++ ) {
-          off_channel_energy += mag2_out[i];
-        }
+//        mag2_out_vector[0] = &mag2_out[0];
+//        for( signed i=0; i<ddc_noutput_items; i++ ) {
+//          off_channel_energy += mag2_out[i];
+//        }
         off_channel_energy /= ddc_noutput_items;
         //off_channel_energy /= d_noise_filter_width;
       }
       else {
         off_channel_energy = 1.0;
       }
+//	printf("offce: %lf\n",off_channel_energy);
 
       snr = 10.0 * log10( on_channel_energy / off_channel_energy );
 
