@@ -84,7 +84,10 @@ namespace gr {
                               gr_vector_const_void_star& input_items,
                               gr_vector_void_star&       output_items )
     {
-      for (double freq = d_low_freq; freq <= d_high_freq; freq += 1e6) {   
+      const unsigned long long low_freq=d_low_freq;
+      const unsigned long long high_freq=d_high_freq;
+      #pragma omp parallel for
+      for (unsigned long long freq = low_freq; freq <= high_freq; freq += 1000000ULL) {   
         gr_complex *ch_samples = new gr_complex[noutput_items+100000];
         gr_vector_void_star btch( 1 );
         btch[0] = ch_samples;
@@ -95,6 +98,8 @@ namespace gr {
 
         /* number of symbols available */
         if (brok || leok) {
+	 #pragma omp critical
+         {
           int sym_length = history();
           char *symbols = new char[sym_length];
           /* pointer to our starting place for sniff_ */
@@ -148,10 +153,12 @@ namespace gr {
             }
           }
           delete [] symbols;
+	}
         }
         else {
           delete [] ch_samples;
         }
+
       }
       d_cumulative_count += (int) d_samples_per_slot;
       

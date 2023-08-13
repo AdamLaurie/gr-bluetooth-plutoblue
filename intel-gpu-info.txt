@@ -1,0 +1,2 @@
+https://github.com/intel/opencl-intercept-layer/blob/main/docs/controls.md
+DefaultQueueThrottleHint needs to be set to 4 or GPU driver will use 100% CPU
